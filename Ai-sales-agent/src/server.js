@@ -42,7 +42,4 @@ app.use("/api/agent", agentRoutes);
 app.use("/api/email", emailRoutes);
 app.use("/api/whatsapp", whatsappRoutes);
 const PORT = process.env.PORT || 5000;
-// app.listen(PORT, () => {
-//     console.log(`AI Sales Agent running on port ${PORT}`);
-// });
 export default app
