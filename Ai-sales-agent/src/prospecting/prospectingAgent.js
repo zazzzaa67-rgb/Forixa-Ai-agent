@@ -4,7 +4,9 @@ import "dotenv/config";
 import {
     importProspects
 } from "./prospectingService.js";
-
+import {
+    enrichProspects
+} from "./providers/contactEnrichmentProvider.js";
 
 const groq = new Groq({
     apiKey: process.env.GROQ_API_KEY
@@ -147,7 +149,6 @@ ${JSON.stringify(prospects)}
     );
     return qualified;
 }
-
 export async function processProspects(
     prospects,
     service
@@ -158,9 +159,27 @@ export async function processProspects(
     console.log(
         `🔎 Processing ${prospects.length} prospects...`
     );
+    // 1. Normalize/enrich existing contact data
+    const enriched =
+        enrichProspects(prospects);
+    // 2. Keep only prospects that have a real contact channel
+    const contactable =
+        enriched.filter(
+            prospect => prospect.contactable
+        );
+    console.log(
+        `📞 Contactable prospects: ${contactable.length}/${enriched.length}`
+    );
+    if (!contactable.length) {
+        console.log(
+            "📭 No contactable prospects."
+        );
+        return [];
+    }
+    // 3. AI qualification
     const qualified =
         await qualifyProspects(
-            prospects,
+            contactable,
             service
         );
     if (!qualified.length) {

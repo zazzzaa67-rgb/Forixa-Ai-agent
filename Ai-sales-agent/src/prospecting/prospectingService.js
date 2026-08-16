@@ -1,5 +1,6 @@
 import supabase from "../database/supabase.js";
 
+
 /**
  * Normalize email for reliable duplicate detection
  */
@@ -9,38 +10,126 @@ function normalizeEmail(email) {
 
 
 /**
+ * Normalize phone number
+ */
+function normalizePhone(phone) {
+    if (!phone) {
+        return null;
+    }
+
+    return String(phone)
+        .trim()
+        .replace(/[^\d+]/g, "");
+}
+
+
+/**
  * Add a prospect to leads.
+ *
+ * A prospect must have at least:
+ * - Email
+ * OR
+ * - Phone
  *
  * This function does NOT send anything.
  */
 export async function addProspect(prospect) {
 
-    const email = normalizeEmail(prospect.email);
-
-    if (!email) {
-        throw new Error("Prospect email is required");
+    if (!prospect || !prospect.name) {
+        throw new Error("Prospect name is required");
     }
 
 
-    // Check if lead already exists
-    const { data: existingLead, error: lookupError } =
-        await supabase
+    // --------------------------------
+    // Normalize contact information
+    // --------------------------------
+
+    const email =
+        normalizeEmail(prospect.email);
+
+    const phone =
+        normalizePhone(prospect.phone);
+
+
+    // Prospect must have at least one
+    // usable contact method.
+
+    if (!email && !phone) {
+        throw new Error(
+            "Prospect must have an email or phone"
+        );
+    }
+
+
+    // --------------------------------
+    // Check duplicate by email
+    // --------------------------------
+
+    let existingLead = null;
+
+
+    if (email) {
+
+        const {
+            data,
+            error
+        } = await supabase
             .from("leads")
-            .select("id, email, status")
+            .select(
+                "id, email, phone, status"
+            )
             .eq("email", email)
             .maybeSingle();
 
 
-    if (lookupError) {
-        throw lookupError;
+        if (error) {
+            throw error;
+        }
+
+
+        existingLead = data;
     }
 
+
+    // --------------------------------
+    // Check duplicate by phone
+    // --------------------------------
+
+    if (!existingLead && phone) {
+
+        const {
+            data,
+            error
+        } = await supabase
+            .from("leads")
+            .select(
+                "id, email, phone, status"
+            )
+            .eq("phone", phone)
+            .maybeSingle();
+
+
+        if (error) {
+            throw error;
+        }
+
+
+        existingLead = data;
+    }
+
+
+    // --------------------------------
+    // Duplicate
+    // --------------------------------
 
     if (existingLead) {
 
         console.log(
-            `⏭️ Duplicate lead skipped: ${email}`
+            `⏭️ Duplicate lead skipped: ${
+                email || phone
+            }`
         );
+
 
         return {
             created: false,
@@ -50,32 +139,62 @@ export async function addProspect(prospect) {
     }
 
 
+    // --------------------------------
     // Insert new lead
-    const { data: lead, error } =
-        await supabase
-            .from("leads")
-            .insert({
-                name: prospect.name || "Unknown",
-                company_name:
-                    prospect.companyName || null,
-                email,
-                website:
-                    prospect.website || null,
-                instagram:
-                    prospect.instagram || null,
-                industry:
-                    prospect.industry || null,
-                country:
-                    prospect.country || null,
-                status: "new",
-                source:
-                    prospect.source || "prospecting"
-            })
-            .select()
-            .single();
+    // --------------------------------
+
+    const {
+        data: lead,
+        error
+    } = await supabase
+        .from("leads")
+        .insert({
+
+            name:
+                prospect.name ||
+                "Unknown",
+
+            company_name:
+                prospect.companyName ||
+                prospect.company ||
+                null,
+
+            email,
+
+            phone,
+
+            whatsapp:
+                prospect.whatsapp === true,
+
+            website:
+                prospect.website ||
+                null,
+
+            instagram:
+                prospect.instagram ||
+                null,
+
+            industry:
+                prospect.industry ||
+                null,
+
+            country:
+                prospect.country ||
+                null,
+
+            status:
+                "new",
+
+            source:
+                prospect.source ||
+                "prospecting"
+        })
+        .select()
+        .single();
 
 
     if (error) {
+
         console.error(
             "❌ Failed to create prospect:",
             error
@@ -86,7 +205,9 @@ export async function addProspect(prospect) {
 
 
     console.log(
-        `✅ New lead created: ${email}`
+        `✅ New lead created: ${
+            email || phone
+        }`
     );
 
 
@@ -101,7 +222,9 @@ export async function addProspect(prospect) {
 /**
  * Import multiple prospects.
  */
-export async function importProspects(prospects) {
+export async function importProspects(
+    prospects
+) {
 
     if (!Array.isArray(prospects)) {
         throw new Error(
@@ -112,12 +235,15 @@ export async function importProspects(prospects) {
 
     const results = [];
 
+
     for (const prospect of prospects) {
 
         try {
 
             const result =
-                await addProspect(prospect);
+                await addProspect(
+                    prospect
+                );
 
             results.push(result);
 
@@ -134,15 +260,46 @@ export async function importProspects(prospects) {
             });
         }
     }
+
+
+    // --------------------------------
+    // Summary
+    // --------------------------------
+
     const created =
-        results.filter(r => r.created).length;
+        results.filter(
+            r => r.created
+        ).length;
+
+
     const duplicates =
-        results.filter(r => r.duplicate).length;
+        results.filter(
+            r => r.duplicate
+        ).length;
+
+
     const failed =
-        results.filter(r => r.error).length;
-    console.log("📊 Prospect import finished:");
-    console.log(`✅ Created: ${created}`);
-    console.log(`♻️ Duplicates: ${duplicates}`);
-    console.log(`❌ Failed: ${failed}`);
+        results.filter(
+            r => r.error
+        ).length;
+
+
+    console.log(
+        "📊 Prospect import finished:"
+    );
+
+    console.log(
+        `✅ Created: ${created}`
+    );
+
+    console.log(
+        `♻️ Duplicates: ${duplicates}`
+    );
+
+    console.log(
+        `❌ Failed: ${failed}`
+    );
+
+
     return results;
 }

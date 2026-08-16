@@ -6,11 +6,13 @@ const groq = new Groq({
 
 export async function generateFollowUp(lead, conversation) {
 
-    const formattedConversation = conversation
-        .map(message => {
-            return `${message.role}: ${message.content}`;
-        })
-        .join("\n");
+        const recentConversation = conversation.slice(-6);
+
+        const formattedConversation = recentConversation
+            .map(message => {
+                return `${message.role}: ${message.content}`;
+            })
+            .join("\n");
 
     const prompt = `
 You are the follow-up sales assistant for FORIXA.
@@ -65,7 +67,7 @@ FORIXA Team
             }
         ],
         temperature: 0.7,
-        max_tokens: 400
+        max_tokens: 250
     });
     return response.choices[0].message.content.trim();
 }
