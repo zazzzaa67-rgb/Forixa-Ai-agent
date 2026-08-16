@@ -1,5 +1,7 @@
 import express from "express";
 import supabase from "../database/supabase.js";
+import { generateResponse } from "../agent/agent.js";
+import { sendWhatsAppMessage } from "../outreach/whatsappSender.js";
 
 const router = express.Router();
 
@@ -218,6 +220,122 @@ router.post("/webhook", async (req, res) => {
                 "💾 Conversation saved:",
                 conversation.id
             );
+            // --------------------------------------
+            // Generate AI response
+            // --------------------------------------
+
+            console.log("🧠 Generating AI response...");
+
+            // Get conversation history
+            const {
+                data: conversationHistory,
+                error: historyError
+            } = await supabase
+                .from("agent_conversations")
+                .select("role, content, created_at")
+                .eq("lead_id", lead.id)
+                .eq("channel", "whatsapp")
+                .order("created_at", { ascending: true })
+                .limit(30);
+
+            if (historyError) {
+                console.error(
+                    "❌ Failed to load conversation history:",
+                    historyError
+                );
+
+                return res.sendStatus(200);
+            }
+
+            const aiMessages = (conversationHistory || []).map(item => ({
+                role: item.role,
+                content: item.content
+            }));
+
+            console.log(
+                `🧠 Sending ${aiMessages.length} messages to AI`
+            );
+
+            let aiResponse;
+
+            try {
+
+                aiResponse = await generateResponse(
+                    aiMessages,
+                    lead.id
+                );
+
+                console.log(
+                    "🤖 AI Response:",
+                    aiResponse
+                );
+
+            } catch (error) {
+
+                console.error(
+                    "❌ AI generation failed:",
+                    error
+                );
+
+                return res.sendStatus(200);
+            }
+            // --------------------------------------
+            // Send AI response via WhatsApp
+            // --------------------------------------
+
+            try {
+
+                const whatsappResult = await sendWhatsAppMessage({
+                    to: normalizedPhone,
+                    message: aiResponse
+                });
+
+                console.log(
+                    "📤 WhatsApp AI message sent:",
+                    whatsappResult.messageId
+                );
+
+            } catch (error) {
+
+                console.error(
+                    "❌ Failed to send AI WhatsApp message:",
+                    error
+                );
+
+                return res.sendStatus(200);
+            }
+            // --------------------------------------
+            // Save AI response
+            // --------------------------------------
+
+            const {
+                data: aiConversation,
+                error: aiConversationError
+            } = await supabase
+                .from("agent_conversations")
+                .insert({
+                    lead_id: lead.id,
+                    channel: "whatsapp",
+                    role: "assistant",
+                    content: aiResponse
+                })
+                .select()
+                .single();
+
+            if (aiConversationError) {
+
+                console.error(
+                    "❌ Failed to save AI response:",
+                    aiConversationError
+                );
+
+            } else {
+
+                console.log(
+                    "💾 AI response saved:",
+                    aiConversation.id
+                );
+            }
             // --------------------------------------
             // Update lead
             // --------------------------------------
