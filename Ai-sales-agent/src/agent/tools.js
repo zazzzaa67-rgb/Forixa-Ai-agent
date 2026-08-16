@@ -59,16 +59,12 @@ export async function getPricing() {
         .from("services")
         .select("*")
         .eq("active", true);
-
     if (error) {
         console.error("Pricing Error:", error);
         throw new Error("Failed to get pricing");
     }
-
     return data;
 }
-
-
 export async function getServiceInfo(serviceName) {
 
     const { data, error } = await supabase
