@@ -1,5 +1,4 @@
 import supabase from "../database/supabase.js";
-
 const ALLOWED_STATUSES = [
     "new",
     "contacted",
@@ -10,13 +9,10 @@ const ALLOWED_STATUSES = [
     "not_interested",
     "opted_out"
 ];
-
 export async function updateLeadStatus(leadId, status) {
-
     if (!ALLOWED_STATUSES.includes(status)) {
         throw new Error(`Invalid lead status: ${status}`);
     }
-
     const { data, error } = await supabase
         .from("leads")
         .update({
@@ -26,35 +22,25 @@ export async function updateLeadStatus(leadId, status) {
         .eq("id", leadId)
         .select()
         .single();
-
     if (error) {
         console.error("Update Lead Error:", error);
         throw new Error("Failed to update lead status");
     }
-
     return data;
 }
-
-
 export async function getLead(leadId) {
-
     const { data, error } = await supabase
         .from("leads")
         .select("*")
         .eq("id", leadId)
         .single();
-
     if (error) {
         console.error("Get Lead Error:", error);
         throw new Error("Failed to get lead");
     }
-
     return data;
 }
-
-
 export async function getPricing() {
-
     const { data, error } = await supabase
         .from("services")
         .select("*")
