@@ -1,9 +1,15 @@
 import express from "express";
+import supabase from "../database/supabase.js";
 
 const router = express.Router();
 
+
+// ==========================================
 // Meta Webhook verification
+// ==========================================
+
 router.get("/webhook", (req, res) => {
+
     const mode = req.query["hub.mode"];
     const token = req.query["hub.verify_token"];
     const challenge = req.query["hub.challenge"];
@@ -12,22 +18,172 @@ router.get("/webhook", (req, res) => {
         mode === "subscribe" &&
         token === process.env.WHATSAPP_VERIFY_TOKEN
     ) {
+
         console.log("✅ WhatsApp Webhook verified");
+
         return res.status(200).send(challenge);
     }
 
     console.log("❌ WhatsApp Webhook verification failed");
+
     return res.sendStatus(403);
 });
 
+
+// ==========================================
 // Receive WhatsApp events
-router.post("/webhook", (req, res) => {
-    console.log("📩 WhatsApp webhook received:");
-    console.log(JSON.stringify(req.body, null, 2));
+// ==========================================
 
-    // هنضيف هنا معالجة رسائل العملاء بعد ما نتأكد إن الـWebhook شغال
+router.post("/webhook", async (req, res) => {
+    try {
+        console.log("\n📩 WhatsApp webhook received:");
+        console.log(JSON.stringify(req.body, null, 2));
+        // --------------------------------------
+        // Make sure this is a WhatsApp event
+        // --------------------------------------
+        const entry = req.body?.entry?.[0];
+        const changes = entry?.changes?.[0];
+        const value = changes?.value;
+        if (!value) {
+            console.log("ℹ️ No WhatsApp value found");
+            return res.sendStatus(200);
+        }
+        // --------------------------------------
+        // Get incoming messages
+        // --------------------------------------
+        const messages = value.messages;
+        if (!messages || messages.length === 0) {
+            console.log("ℹ️ Webhook event has no incoming messages");
+            return res.sendStatus(200);
+        }
+        // --------------------------------------
+        // Process each message
+        // --------------------------------------
+        for (const message of messages) {
+            const whatsappNumber = message.from;
+            const messageId = message.id;
+            const messageType = message.type;
+            console.log("📱 From:", whatsappNumber);
+            console.log("🆔 Message ID:", messageId);
+            console.log("📦 Type:", messageType);
+            // --------------------------------------
+            // Currently support text messages
+            // --------------------------------------
+            if (messageType !== "text") {
+                console.log(
+                    `ℹ️ Message type "${messageType}" is not supported yet`
+                );
+                continue;
+            }
+            const messageText = message.text?.body;
+            if (!messageText) {
+                console.log("⚠️ Message has no text");
+                continue;
+            }
+            console.log("💬 Message:", messageText);
+            // --------------------------------------
+            // Normalize phone number
+            // --------------------------------------
+            const normalizedPhone =
+                String(whatsappNumber).replace(/\D/g, "");
+            console.log(
+                "🔎 Searching lead by phone:",
+                normalizedPhone
+            );
+            // --------------------------------------
+            // Find lead
+            // --------------------------------------
+            const { data: leads, error: leadError } = await supabase
+                .from("leads")
+                .select("id, name, company_name, phone, whatsapp")
+                .in("phone", [
+                    normalizedPhone,
+                    `+${normalizedPhone}`
+                ])
+                .limit(1);
+            if (leadError) {
+                console.error(
+                    "❌ Lead lookup error:",
+                    leadError
+                );
+                continue;
+            }
+            if (!leads || leads.length === 0) {
+                console.log(
+                    "⚠️ No lead found for:",
+                    normalizedPhone
+                );
+                continue;
+            }
+            const lead = leads[0];
+            console.log(
+                `✅ Lead found: #${lead.id} - ${lead.name}`
+            );
+            // --------------------------------------
+            // Save conversation
+            // --------------------------------------
+            const { data: conversation, error: conversationError } =
+                await supabase
+                    .from("agent_conversations")
+                    .insert({
+                        lead_id: lead.id,
+                        channel: "whatsapp",
+                        role: "user",
+                        content: messageText
+                    })
+                    .select()
+                    .single();
+            if (conversationError) {
+                console.error(
+                    "❌ Failed to save WhatsApp message:",
+                    conversationError
+                );
+                continue;
+            }
 
-    res.sendStatus(200);
+            console.log(
+                "💾 Conversation saved:",
+                conversation.id
+            );
+            // --------------------------------------
+            // Update lead
+            // --------------------------------------
+            const { error: updateError } = await supabase
+                .from("leads")
+                .update({
+                    last_replied_at: new Date().toISOString(),
+                    whatsapp: true
+                })
+                .eq("id", lead.id);
+            if (updateError) {
+                console.error(
+                    "⚠️ Failed to update lead:",
+                    updateError
+                );
+            } else {
+                console.log(
+                    `✅ Lead #${lead.id} updated`
+                );
+            }
+            console.log(
+                `🎯 WhatsApp message processed successfully for lead #${lead.id}`
+            );
+        }
+
+        // --------------------------------------
+        // Always acknowledge Meta
+        // --------------------------------------
+        return res.sendStatus(200);
+    } catch (error) {
+        console.error(
+            "❌ WhatsApp webhook error:",
+            error
+        );
+        /*
+         * We still return 200 so Meta doesn't repeatedly
+         * retry the same webhook while we're debugging.
+         */
+        return res.sendStatus(200);
+    }
 });
-
 export default router;
