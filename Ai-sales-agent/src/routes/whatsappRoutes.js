@@ -117,35 +117,84 @@ router.post("/webhook", async (req, res) => {
             // --------------------------------------
             // Find lead
             // --------------------------------------
+
             const { data: leads, error: leadError } = await supabase
                 .from("leads")
                 .select("id, name, company_name, phone, whatsapp")
-                .in("phone", [
-                    normalizedPhone,
-                    `+${normalizedPhone}`
-                ])
+                .or(`phone.eq.${normalizedPhone},phone.eq.+${normalizedPhone}`)
                 .limit(1);
+
             if (leadError) {
-                console.error(
-                    "❌ Lead lookup error:",
-                    leadError
-                );
+                console.error("❌ Lead lookup error:", leadError);
                 continue;
             }
-            if (!leads || leads.length === 0) {
+
+            let lead;
+
+            // --------------------------------------
+            // Existing lead
+            // --------------------------------------
+
+            if (leads && leads.length > 0) {
+
+                lead = leads[0];
+
                 console.log(
-                    "⚠️ No lead found for:",
-                    normalizedPhone
+                    `✅ Lead found: #${lead.id} - ${lead.name}`
                 );
-                continue;
+
             }
-            const lead = leads[0];
-            console.log(
-                `✅ Lead found: #${lead.id} - ${lead.name}`
-            );
+
             // --------------------------------------
-            // Save conversation
+            // New lead
             // --------------------------------------
+
+            else {
+
+                console.log(
+                    `🆕 No lead found. Creating new WhatsApp lead: ${normalizedPhone}`
+                );
+
+                const contactName =
+                    value?.contacts?.[0]?.profile?.name ||
+                    "WhatsApp Lead";
+
+                const { data: newLead, error: createLeadError } =
+                    await supabase
+                        .from("leads")
+                        .insert({
+                            name: contactName,
+                            company_name: null,
+                            email: null,
+                            website: null,
+                            instagram: null,
+                            industry: null,
+                            country: null,
+                            status: "new",
+                            source: "whatsapp",
+                            phone: normalizedPhone,
+                            whatsapp: true,
+                            last_replied_at: new Date().toISOString()
+                        })
+                        .select()
+                        .single();
+
+                if (createLeadError) {
+
+                    console.error(
+                        "❌ Failed to create WhatsApp lead:",
+                        createLeadError
+                    );
+
+                    continue;
+                }
+
+                lead = newLead;
+
+                console.log(
+                    `✅ New lead created: #${lead.id} - ${lead.name}`
+                );
+            }
             const { data: conversation, error: conversationError } =
                 await supabase
                     .from("agent_conversations")
