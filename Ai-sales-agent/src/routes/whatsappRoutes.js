@@ -37,7 +37,34 @@ router.get("/webhook", (req, res) => {
 router.post("/webhook", async (req, res) => {
     try {
         console.log("\n📩 WhatsApp webhook received:");
+        console.log("📩 WhatsApp webhook received:");
         console.log(JSON.stringify(req.body, null, 2));
+
+        console.log("ENTRY:");
+        console.log(JSON.stringify(req.body?.entry, null, 2));
+
+        console.log("CHANGES:");
+        console.log(
+            JSON.stringify(req.body?.entry?.[0]?.changes, null, 2)
+        );
+
+    console.log("VALUE:");
+    console.log(
+        JSON.stringify(
+            req.body?.entry?.[0]?.changes?.[0]?.value,
+            null,
+            2
+        )
+    );
+
+    console.log("MESSAGES:");
+    console.log(
+        JSON.stringify(
+            req.body?.entry?.[0]?.changes?.[0]?.value?.messages,
+            null,
+            2
+        )
+    );
         // --------------------------------------
         // Make sure this is a WhatsApp event
         // --------------------------------------
@@ -48,9 +75,6 @@ router.post("/webhook", async (req, res) => {
             console.log("ℹ️ No WhatsApp value found");
             return res.sendStatus(200);
         }
-        // --------------------------------------
-        // Get incoming messages
-        // --------------------------------------
         const messages = value.messages;
         if (!messages || messages.length === 0) {
             console.log("ℹ️ Webhook event has no incoming messages");
