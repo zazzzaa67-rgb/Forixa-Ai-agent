@@ -1,7 +1,5 @@
 import supabase from "../database/supabase.js";
 import { createOutreachJob } from "../outreach/outreachJobService.js";
-
-
 export async function createCampaign({
     name,
     service,
@@ -49,7 +47,6 @@ export async function queueLeadsForCampaign(
         socialLimit = 0
     } = {}
 ) {
-
     // --------------------------------
     // 1. Get campaign
     // --------------------------------
@@ -67,6 +64,14 @@ export async function queueLeadsForCampaign(
         throw new Error("Campaign not found");
     }
 
+    const targetJobs =
+        emailLimit +
+        whatsappLimit +
+        socialLimit;
+
+    if (targetJobs <= 0) {
+        throw new Error("At least one outreach limit is required");
+    }
 
     // --------------------------------
     // 2. Get eligible leads
@@ -76,13 +81,14 @@ export async function queueLeadsForCampaign(
         data: leads,
         error: leadsError
     } = await supabase
-    .from("leads")
-    .select("*")
-    .eq("status", "new")
-    .order("created_at", {
-        ascending: true
-    })
-    .limit(100);
+        .from("leads")
+        .select("*")
+        .eq("campaign_id", campaignId)
+        .eq("status", "new")
+        .order("created_at", {
+            ascending: true
+        })
+        .limit(100);
 
     if (leadsError) {
         console.error(
@@ -92,35 +98,13 @@ export async function queueLeadsForCampaign(
 
         throw leadsError;
     }
-    console.log("📋 WhatsApp eligibility:");
-
-    for (const lead of leads) {
-        console.log({
-            id: lead.id,
-            name: lead.name,
-            phone: lead.phone,
-            whatsapp: lead.whatsapp,
-            status: lead.status
-        });
-    }
-
 
     if (!leads?.length) {
-        console.log(
-            "📭 No eligible leads found."
-        );
-
+        console.log("📭 No eligible leads found.");
         return [];
     }
 
-    if (!leads?.length) {
-        console.log(
-            "📭 No eligible leads found."
-        );
-
-        return [];
-    }
-
+    console.log(`📋 Found ${leads.length} eligible lead(s).`);
 
     // --------------------------------
     // 3. Create outreach jobs
@@ -132,28 +116,17 @@ export async function queueLeadsForCampaign(
     let whatsappCount = 0;
     let socialCount = 0;
 
-    const targetJobs =
-        emailLimit +
-        whatsappLimit +
-        socialLimit;
-
-
     for (const lead of leads) {
 
-        // Stop when we have enough jobs
         if (
-            results.filter(
-                r => r.created
-            ).length >= targetJobs
+            results.filter(r => r.created).length >= targetJobs
         ) {
             break;
         }
 
-
         if (lead.status === "opted_out") {
             continue;
         }
-
 
         // ================================
         // EMAIL
@@ -163,16 +136,14 @@ export async function queueLeadsForCampaign(
             lead.email &&
             emailCount < emailLimit
         ) {
-
-            const result =
-                await createOutreachJob({
-                    lead_id: lead.id,
-                    channel: "email",
-                    target: lead.email,
-                    service: campaign.service,
-                    message: null,
-                    scheduled_at: null
-                });
+            const result = await createOutreachJob({
+                lead_id: lead.id,
+                channel: "email",
+                target: lead.email,
+                service: campaign.service,
+                message: null,
+                scheduled_at: null
+            });
 
             results.push(result);
 
@@ -183,86 +154,57 @@ export async function queueLeadsForCampaign(
             continue;
         }
 
-
         // ================================
         // WHATSAPP
         // ================================
-
         if (
-            lead.phone &&
-            lead.status === "new" &&
-            whatsappCount < whatsappLimit
+        lead.phone &&
+        whatsappCount < whatsappLimit
         ) {
-
-            const result =
-                await createOutreachJob({
-                    lead_id: lead.id,
-                    channel: "whatsapp",
-                    target: lead.phone,
-                    service: campaign.service,
-                    message: null,
-                    scheduled_at: null
-                });
-
+            const result = await createOutreachJob({
+                lead_id: lead.id,
+                channel: "whatsapp",
+                target: lead.phone,
+                service: campaign.service,
+                message: null,
+                scheduled_at: null
+            });
             results.push(result);
-
             if (result.created) {
                 whatsappCount++;
             }
-
             continue;
         }
-
-
         // ================================
         // INSTAGRAM
         // ================================
-
         if (
             lead.instagram &&
             socialCount < socialLimit
         ) {
-
-            const result =
-                await createOutreachJob({
-                    lead_id: lead.id,
-                    channel: "instagram",
-                    target: lead.instagram,
-                    service: campaign.service,
-                    message: null,
-                    scheduled_at: null
-                });
-
+            const result = await createOutreachJob({
+                lead_id: lead.id,
+                channel: "instagram",
+                target: lead.instagram,
+                service: campaign.service,
+                message: null,
+                scheduled_at: null
+            });
             results.push(result);
-
             if (result.created) {
                 socialCount++;
             }
         }
     }
-
-
     // --------------------------------
     // 4. Summary
     // --------------------------------
-
     console.log("");
-
-    console.log(
-        `📋 Outreach jobs processed: ${results.length}`
-    );
-
-    console.log(
-        `📧 Email jobs: ${emailCount}`
-    );
-
-    console.log(
-        `📱 WhatsApp jobs: ${whatsappCount}`
-    );
-
-    console.log(
-        `📸 Instagram jobs: ${socialCount}`
-    );
-
+    console.log("📊 Campaign queue summary");
+    console.log("────────────────────────");
+    console.log(`📨 Jobs: ${results.length}`);
+    console.log(`📧 Email: ${emailCount}`);
+    console.log(`📱 WhatsApp: ${whatsappCount}`);
+    console.log(`📸 Instagram: ${socialCount}`);
     return results;
 }

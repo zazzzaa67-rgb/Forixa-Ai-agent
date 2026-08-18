@@ -21,51 +21,86 @@ export async function searchOpenStreetMap({
 
     const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 50);
 
-    const query = `
+const query = `
 [out:json][timeout:25];
 
 area
-  ["name"="${escapeOverpassValue(city)}"]
-  ->.searchArea;
+    ["name"="${escapeOverpassValue(city)}"]
+    ["boundary"="administrative"]
+    ->.searchArea;
 
 (
-  node
-    ["amenity"="${escapeOverpassValue(category)}"]
-    (area.searchArea);
+    node
+        ["amenity"="${escapeOverpassValue(category)}"]
+        (area.searchArea);
 
-  way
-    ["amenity"="${escapeOverpassValue(category)}"]
-    (area.searchArea);
+    way
+        ["amenity"="${escapeOverpassValue(category)}"]
+        (area.searchArea);
 
-  relation
-    ["amenity"="${escapeOverpassValue(category)}"]
-    (area.searchArea);
+    relation
+        ["amenity"="${escapeOverpassValue(category)}"]
+        (area.searchArea);
 );
 
 out center tags;
 `;
 
-    const response = await fetch(OVERPASS_URL, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-            "User-Agent": "FORIXA-AI-Sales-Agent/1.0"
-        },
-        body: new URLSearchParams({
-            data: query
-        })
-    });
+    let response;
+    const MAX_RETRIES = 3;
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+            console.log(
+                `🌐 Overpass request attempt ${attempt}/${MAX_RETRIES}...`
+            );
+            response = await fetch(OVERPASS_URL, {
+                method: "POST",
+                headers: {
+                    "Content-Type":
+                        "application/x-www-form-urlencoded",
+                    "User-Agent":
+                        "FORIXA-AI-Sales-Agent/1.0"
+                },
+                body: new URLSearchParams({
+                    data: query
+                })
+            });
+            if (response.ok) {
+                break;
+            }
+            console.log(
+                `⚠️ Overpass returned ${response.status}`
+            );
+        } catch (error) {
+            console.log(
+                `⚠️ Overpass request failed: ${error.message}`
+            );
+        }
 
+        if (attempt < MAX_RETRIES) {
+            const delay = attempt * 3000;
+            console.log(
+                `⏳ Retrying in ${delay / 1000}s...`
+            );
+            await new Promise(resolve =>
+                setTimeout(resolve, delay)
+            );
+        }
+    }
+
+    if (!response || !response.ok) {
+
+        throw new Error(
+            `OpenStreetMap request failed after ${MAX_RETRIES} attempts`
+        );
+    }
     if (!response.ok) {
         throw new Error(
             `OpenStreetMap request failed: ${response.status} ${response.statusText}`
         );
     }
-
     const data = await response.json();
-
     const elements = data.elements || [];
-
     const prospects = elements
         .slice(0, safeLimit)
         .map(normalizePlace)

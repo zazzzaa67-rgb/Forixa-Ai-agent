@@ -33,7 +33,7 @@ function normalizePhone(phone) {
  *
  * This function does NOT send anything.
  */
-export async function addProspect(prospect) {
+export async function addProspect(prospect ,campaignId ) {
 
     if (!prospect || !prospect.name) {
         throw new Error("Prospect name is required");
@@ -181,7 +181,7 @@ export async function addProspect(prospect) {
             country:
                 prospect.country ||
                 null,
-
+            campaign_id: campaignId,
             status:
                 "new",
 
@@ -223,7 +223,8 @@ export async function addProspect(prospect) {
  * Import multiple prospects.
  */
 export async function importProspects(
-    prospects
+    prospects,
+    campaignId
 ) {
 
     if (!Array.isArray(prospects)) {
@@ -242,7 +243,8 @@ export async function importProspects(
 
             const result =
                 await addProspect(
-                    prospect
+                    prospect,
+                    campaignId
                 );
 
             results.push(result);

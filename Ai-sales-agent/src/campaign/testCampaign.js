@@ -1,27 +1,68 @@
 import "dotenv/config";
 
-import {
-    createCampaign,
-    queueLeadsForCampaign
-} from "./campaignService.js";
+import { runCampaign } from "./campaignRunner.js";
 
-const campaign = await createCampaign({
-    name: "Real Website Outreach Test",
-    service: "Website",
-    targetIndustry: "Restaurants",
-    targetCountry: "United States",
-    targetCount: 5
-});
+async function main() {
 
-console.log("Campaign:", campaign);
+    console.log("");
+    console.log("🧪 TEST CAMPAIGN");
+    console.log("========================");
 
-const jobs = await queueLeadsForCampaign(
-    campaign.id,
-    {
-        emailLimit: 5,
-        socialLimit: 0
+    try {
+
+        const result = await runCampaign({
+
+            name: "Test WhatsApp Campaign",
+
+            service: "Website",
+
+            targetIndustry: "restaurant",
+
+            targetCity: "Alexandria",
+
+            targetCountry: "Egypt",
+
+            targetCount: 5,
+
+            emailLimit: 0,
+
+            whatsappLimit: 1,
+
+            socialLimit: 0
+
+        });
+
+        console.log("");
+        console.log("🎉 TEST FINISHED");
+        console.log("========================");
+
+        console.log("");
+        console.log("📋 Campaign:");
+        console.log(result.campaign);
+
+        console.log("");
+        console.log("🗺️ Prospects:");
+        console.log(result.prospects);
+
+        console.log("");
+        console.log("💾 Imported Prospects:");
+        console.log(result.importedProspects);
+
+        console.log("");
+        console.log("📨 Jobs:");
+        console.log(result.jobs);
+
+        console.log("");
+        console.log("📊 Campaign Jobs:");
+        console.log(result.campaignJobs);
+
+    } catch (error) {
+
+        console.error("");
+        console.error("❌ TEST CAMPAIGN FAILED:");
+        console.error(error);
+
+        process.exit(1);
     }
-);
-
-console.log("\nCreated jobs:");
-console.dir(jobs, { depth: null });
+}
+main();

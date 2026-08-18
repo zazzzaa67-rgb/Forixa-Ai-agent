@@ -86,7 +86,7 @@ ${JSON.stringify(prospects)}
     const completion =
         await groq.chat.completions.create({
 
-            model: "llama-3.3-70b-versatile",
+            model: "openai/gpt-oss-120b",
 
             messages: [
                 {
@@ -151,7 +151,8 @@ ${JSON.stringify(prospects)}
 }
 export async function processProspects(
     prospects,
-    service
+    service,
+    campaignId
 ) {
     if (!Array.isArray(prospects)) {
         throw new Error("Prospects must be an array");
@@ -193,7 +194,8 @@ export async function processProspects(
     );
     const results =
         await importProspects(
-            qualified
+            qualified,
+            campaignId
         );
     return results;
 }

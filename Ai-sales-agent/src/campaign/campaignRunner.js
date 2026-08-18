@@ -2,17 +2,28 @@ import "dotenv/config";
 import supabase from "../database/supabase.js";
 
 import {
+    searchOpenStreetMap
+} from "../prospecting/providers/openStreetMapProvider.js";
+
+import {
+    processProspects
+} from "../prospecting/prospectingAgent.js";
+
+import {
     createCampaign,
     queueLeadsForCampaign
 } from "./campaignService.js";
 
-import { processOutreachJobs } from "../outreach/outreachWorker.js";
+import {
+    processOutreachJobs
+} from "../outreach/outreachWorker.js";
 
 
 export async function runCampaign({
     name,
     service,
     targetIndustry,
+    targetCity,
     targetCountry,
     targetCount = 5,
     emailLimit = 0,
@@ -43,8 +54,53 @@ export async function runCampaign({
 
 
     // --------------------------------
-    // 2. Create outreach jobs
+    // 2. Prospecting
     // --------------------------------
+
+    console.log("");
+    console.log("🔎 Starting prospecting...");
+    console.log("────────────────────────");
+
+    const prospects = await searchOpenStreetMap({
+        city: targetCity,
+        category: targetIndustry,
+        limit: targetCount
+    });
+
+    console.log(
+        `🗺️ Discovered ${prospects.length} prospects.`
+    );
+
+
+    // --------------------------------
+    // 3. AI qualification + import
+    // --------------------------------
+
+    console.log("");
+    console.log("🧠 Starting AI qualification...");
+    console.log("────────────────────────");
+
+    const importedProspects = await processProspects(
+        prospects,
+        service
+    );
+
+    const createdLeads = importedProspects.filter(
+        result => result.created
+    );
+
+    console.log(
+        `💾 ${createdLeads.length} new lead(s) created.`
+    );
+
+
+    // --------------------------------
+    // 4. Create outreach jobs
+    // --------------------------------
+
+    console.log("");
+    console.log("📨 Creating outreach jobs...");
+    console.log("────────────────────────");
 
     const jobs = await queueLeadsForCampaign(
         campaign.id,
@@ -52,27 +108,27 @@ export async function runCampaign({
             emailLimit,
             whatsappLimit,
             socialLimit
-            
         }
     );
 
     console.log(
-        `📨 ${jobs.length} outreach job(s) processed.`
+        `📨 ${jobs.length} outreach job(s) created.`
     );
 
 
     // --------------------------------
-    // 3. Run outreach worker
+    // 5. Run outreach worker
     // --------------------------------
 
     console.log("");
     console.log("⚙️ Starting outreach worker...");
+    console.log("────────────────────────");
 
     await processOutreachJobs();
 
 
     // --------------------------------
-    // 4. Get campaign jobs
+    // 6. Get campaign jobs
     // --------------------------------
 
     const jobIds = jobs
@@ -90,7 +146,6 @@ export async function runCampaign({
             .from("outreach_jobs")
             .select("*")
             .in("id", jobIds);
-            
 
         if (error) {
 
@@ -108,7 +163,7 @@ export async function runCampaign({
 
 
     // --------------------------------
-    // 5. Finish
+    // 7. Finish
     // --------------------------------
 
     console.log("");
@@ -118,7 +173,10 @@ export async function runCampaign({
 
     return {
         campaign,
+        prospects,
+        importedProspects,
         jobs,
         campaignJobs
     };
 }
+
