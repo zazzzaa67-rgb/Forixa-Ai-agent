@@ -121,22 +121,44 @@ export async function addProspect(prospect ,campaignId ) {
     // --------------------------------
     // Duplicate
     // --------------------------------
-
     if (existingLead) {
+    if (existingLead.status === "new") {
+        const { error: updateError } =
+            await supabase
+                .from("leads")
+                .update({
+                    campaign_id: campaignId
+                })
+                .eq("id", existingLead.id);
+
+        if (updateError) {
+            throw updateError;
+        }
 
         console.log(
-            `⏭️ Duplicate lead skipped: ${
-                email || phone
-            }`
+            `🔄 Existing lead assigned to campaign #${campaignId}: ${existingLead.id}`
         );
-
 
         return {
             created: false,
             duplicate: true,
-            lead: existingLead
+            lead: {
+                ...existingLead,
+                campaign_id: campaignId
+            }
         };
     }
+
+    console.log(
+        `⏭️ Duplicate lead skipped: ${email || phone}`
+    );
+
+    return {
+        created: false,
+        duplicate: true,
+        lead: existingLead
+    };
+}
 
 
     // --------------------------------
