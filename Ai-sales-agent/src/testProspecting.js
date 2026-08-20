@@ -35,4 +35,7 @@ const prospects = [
         source: "manual_test"
     }
 ];
-await importProspects(prospects);
+await importProspects(
+    prospects,
+    process.env.TEST_CAMPAIGN_ID
+);

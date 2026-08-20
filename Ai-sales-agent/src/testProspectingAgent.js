@@ -32,7 +32,8 @@ const prospects = [
 
 const result = await processProspects(
     prospects,
-    "website"
+    "website",
+    process.env.TEST_CAMPAIGN_ID
 );
 
 

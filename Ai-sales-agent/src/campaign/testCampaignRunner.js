@@ -5,6 +5,7 @@ const result = await runCampaign({
     name: "FORIXA WhatsApp Pilot",
     service: "Website",
     targetIndustry: "Restaurants",
+    targetCity: "Alexandria",
     targetCountry: "United States",
 
     targetCount: 1,

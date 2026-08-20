@@ -7,6 +7,8 @@ const DAILY_LIMIT = 20;
 // TEST MODE
 const TEST_MODE =
     process.env.OUTREACH_TEST_MODE === "true";
+const DRY_RUN =
+    process.env.OUTREACH_DRY_RUN === "true";
 
 async function getTodaySentCount() {
     const startOfDay = new Date();
@@ -183,10 +185,12 @@ export async function processOutreachJobs() {
                 // Dispatcher
                 // --------------------------------
 
-                const result =
-                    await dispatchOutreachJob(
-                        jobToProcess
-                    );
+                const result = DRY_RUN
+                    ? {
+                        message: job.message || "Dry-run outreach",
+                        messageId: null
+                    }
+                    : await dispatchOutreachJob(jobToProcess);
 
 
                 console.log(
@@ -302,6 +306,7 @@ export async function processOutreachJobs() {
             error.message
         );
 
+        throw error;
     }
 }
 

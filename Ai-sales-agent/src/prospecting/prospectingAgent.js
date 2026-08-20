@@ -8,6 +8,10 @@ import {
     enrichProspects
 } from "./providers/contactEnrichmentProvider.js";
 
+if (!process.env.GROQ_API_KEY) {
+    throw new Error("GROQ_API_KEY is missing");
+}
+
 const groq = new Groq({
     apiKey: process.env.GROQ_API_KEY
 });
@@ -156,6 +160,14 @@ export async function processProspects(
 ) {
     if (!Array.isArray(prospects)) {
         throw new Error("Prospects must be an array");
+    }
+
+    if (!campaignId) {
+        throw new Error("campaignId is required");
+    }
+
+    if (!service) {
+        throw new Error("service is required");
     }
     console.log(
         `🔎 Processing ${prospects.length} prospects...`

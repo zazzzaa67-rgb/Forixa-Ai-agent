@@ -47,7 +47,9 @@ out center tags;
 `;
 
     let response;
-    const MAX_RETRIES = 3;
+    const MAX_RETRIES = 4;
+    let lastFailure = null;
+
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
             console.log(
@@ -68,17 +70,20 @@ out center tags;
             if (response.ok) {
                 break;
             }
+
+            lastFailure = `HTTP ${response.status} ${response.statusText}`;
             console.log(
                 `⚠️ Overpass returned ${response.status}`
             );
         } catch (error) {
+            lastFailure = error.message;
             console.log(
                 `⚠️ Overpass request failed: ${error.message}`
             );
         }
 
         if (attempt < MAX_RETRIES) {
-            const delay = attempt * 3000;
+            const delay = attempt * 2500;
             console.log(
                 `⏳ Retrying in ${delay / 1000}s...`
             );
@@ -91,7 +96,7 @@ out center tags;
     if (!response || !response.ok) {
 
         throw new Error(
-            `OpenStreetMap request failed after ${MAX_RETRIES} attempts`
+            `OpenStreetMap request failed after ${MAX_RETRIES} attempts: ${lastFailure || "unknown error"}`
         );
     }
     if (!response.ok) {

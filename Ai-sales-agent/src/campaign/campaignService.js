@@ -47,6 +47,16 @@ export async function queueLeadsForCampaign(
         socialLimit = 0
     } = {}
 ) {
+    if (!campaignId) {
+        throw new Error("campaignId is required");
+    }
+
+    const limits = {
+        email: Math.max(Number(emailLimit) || 0, 0),
+        whatsapp: Math.max(Number(whatsappLimit) || 0, 0),
+        instagram: Math.max(Number(socialLimit) || 0, 0)
+    };
+
     // --------------------------------
     // 1. Get campaign
     // --------------------------------
@@ -64,10 +74,8 @@ export async function queueLeadsForCampaign(
         throw new Error("Campaign not found");
     }
 
-    const targetJobs =
-        emailLimit +
-        whatsappLimit +
-        socialLimit;
+    const targetJobs = Object.values(limits)
+        .reduce((total, limit) => total + limit, 0);
 
     if (targetJobs <= 0) {
         throw new Error("At least one outreach limit is required");
@@ -112,9 +120,11 @@ export async function queueLeadsForCampaign(
 
     const results = [];
 
-    let emailCount = 0;
-    let whatsappCount = 0;
-    let socialCount = 0;
+    const counts = {
+        email: 0,
+        whatsapp: 0,
+        instagram: 0
+    };
 
     for (const lead of leads) {
 
@@ -132,67 +142,38 @@ export async function queueLeadsForCampaign(
         // EMAIL
         // ================================
 
-        if (
-            lead.email &&
-            emailCount < emailLimit
-        ) {
-            const result = await createOutreachJob({
-                lead_id: lead.id,
-                channel: "email",
-                target: lead.email,
-                service: campaign.service,
-                message: null,
-                scheduled_at: null
-            });
+        const channel = lead.email && counts.email < limits.email
+            ? "email"
+            : lead.whatsapp === true && lead.phone && counts.whatsapp < limits.whatsapp
+                ? "whatsapp"
+                : lead.instagram && counts.instagram < limits.instagram
+                    ? "instagram"
+                    : null;
 
-            results.push(result);
-
-            if (result.created) {
-                emailCount++;
-            }
-
+        if (!channel) {
             continue;
         }
 
-        // ================================
-        // WHATSAPP
-        // ================================
-        if (
-        lead.phone &&
-        whatsappCount < whatsappLimit
-        ) {
+        const target = channel === "email"
+            ? lead.email
+            : channel === "whatsapp"
+                ? lead.phone
+                : lead.instagram;
+
+        {
             const result = await createOutreachJob({
                 lead_id: lead.id,
-                channel: "whatsapp",
-                target: lead.phone,
+                channel,
+                target,
                 service: campaign.service,
                 message: null,
                 scheduled_at: null
             });
+
             results.push(result);
+
             if (result.created) {
-                whatsappCount++;
-            }
-            continue;
-        }
-        // ================================
-        // INSTAGRAM
-        // ================================
-        if (
-            lead.instagram &&
-            socialCount < socialLimit
-        ) {
-            const result = await createOutreachJob({
-                lead_id: lead.id,
-                channel: "instagram",
-                target: lead.instagram,
-                service: campaign.service,
-                message: null,
-                scheduled_at: null
-            });
-            results.push(result);
-            if (result.created) {
-                socialCount++;
+                counts[channel]++;
             }
         }
     }
@@ -203,8 +184,8 @@ export async function queueLeadsForCampaign(
     console.log("📊 Campaign queue summary");
     console.log("────────────────────────");
     console.log(`📨 Jobs: ${results.length}`);
-    console.log(`📧 Email: ${emailCount}`);
-    console.log(`📱 WhatsApp: ${whatsappCount}`);
-    console.log(`📸 Instagram: ${socialCount}`);
+    console.log(`📧 Email: ${counts.email}`);
+    console.log(`📱 WhatsApp: ${counts.whatsapp}`);
+    console.log(`📸 Instagram: ${counts.instagram}`);
     return results;
 }

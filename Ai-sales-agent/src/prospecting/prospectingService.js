@@ -35,6 +35,10 @@ function normalizePhone(phone) {
  */
 export async function addProspect(prospect ,campaignId ) {
 
+    if (!campaignId) {
+        throw new Error("campaignId is required");
+    }
+
     if (!prospect || !prospect.name) {
         throw new Error("Prospect name is required");
     }
@@ -123,13 +127,15 @@ export async function addProspect(prospect ,campaignId ) {
     // --------------------------------
     if (existingLead) {
     if (existingLead.status === "new") {
-        const { error: updateError } =
+        const { data: updatedLead, error: updateError } =
             await supabase
                 .from("leads")
                 .update({
                     campaign_id: campaignId
                 })
-                .eq("id", existingLead.id);
+                .eq("id", existingLead.id)
+                .select("*")
+                .single();
 
         if (updateError) {
             throw updateError;
@@ -142,10 +148,7 @@ export async function addProspect(prospect ,campaignId ) {
         return {
             created: false,
             duplicate: true,
-            lead: {
-                ...existingLead,
-                campaign_id: campaignId
-            }
+            lead: updatedLead
         };
     }
 
@@ -175,18 +178,13 @@ export async function addProspect(prospect ,campaignId ) {
             name:
                 prospect.name ||
                 "Unknown",
-
             company_name:
                 prospect.companyName ||
                 prospect.company ||
                 null,
-
             email,
 
             phone,
-
-            whatsapp:
-                prospect.whatsapp === true,
 
             website:
                 prospect.website ||
@@ -248,6 +246,10 @@ export async function importProspects(
     prospects,
     campaignId
 ) {
+
+    if (!campaignId) {
+        throw new Error("campaignId is required");
+    }
 
     if (!Array.isArray(prospects)) {
         throw new Error(

@@ -15,6 +15,12 @@ const prospects =
         limit: 20
     });
 
+const campaignId = process.env.TEST_CAMPAIGN_ID;
+
+if (!campaignId) {
+    throw new Error("TEST_CAMPAIGN_ID is required for prospecting pipeline tests");
+}
+
 console.log(
     `\n🔎 Found ${prospects.length} prospects`
 );
@@ -22,7 +28,8 @@ console.log(
 const results =
     await processProspects(
         prospects,
-        "Website"
+        "Website",
+        campaignId
     );
 
 console.log("\n📊 FINAL PROSPECTING RESULT");

@@ -35,6 +35,18 @@ export async function runCampaign({
     console.log("🚀 Starting campaign...");
     console.log("────────────────────────");
 
+    if (!name) {
+        throw new Error("Campaign name is required");
+    }
+
+    if (!service) {
+        throw new Error("Campaign service is required");
+    }
+
+    if (!targetCity) {
+        throw new Error("Campaign targetCity is required");
+    }
+
 
     // --------------------------------
     // 1. Create campaign
@@ -82,7 +94,8 @@ export async function runCampaign({
 
     const importedProspects = await processProspects(
         prospects,
-        service
+        service,
+        campaign.id
     );
 
     const createdLeads = importedProspects.filter(

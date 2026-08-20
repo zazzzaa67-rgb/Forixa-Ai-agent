@@ -39,6 +39,10 @@ export function setCredentials(tokens) {
 }
 
 export function getGmailClient() {
+    if (!process.env.GOOGLE_REFRESH_TOKEN) {
+        throw new Error("GOOGLE_REFRESH_TOKEN is missing");
+    }
+
     return google.gmail({
         version: "v1",
         auth: oauth2Client

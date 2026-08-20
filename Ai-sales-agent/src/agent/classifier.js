@@ -1,6 +1,10 @@
 import "dotenv/config";
 import Groq from "groq-sdk";
 
+if (!process.env.GROQ_API_KEY) {
+    throw new Error("GROQ_API_KEY is missing");
+}
+
 const groq = new Groq({
     apiKey: process.env.GROQ_API_KEY
 });
@@ -42,7 +46,7 @@ Rules:
 export async function classifyConversation(messages) {
     try {
         const completion = await groq.chat.completions.create({
-            model: "llama-3.3-70b-versatile",
+            model: "openai/gpt-oss-120b",
             messages: [
                 {
                     role: "system",
